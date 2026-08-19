@@ -1,7 +1,7 @@
 //@version=6
 indicator(
-     "Spyfrat All-in-One v3 (Clean)",
-     shorttitle = "Spyfrat AIO v3",
+     "Spyfrat All-in-One v3 + ZF Bounce + Goku",
+     shorttitle = "Spyfrat AIO v3 Full",
      overlay = false,
      precision = 2
 )
@@ -34,14 +34,29 @@ enableParaBuy = input.bool(true, "Enable Parabolic BUY", group = groupParabolic)
 enableParaSell = input.bool(true, "Enable Parabolic SELL", group = groupParabolic)
 requireUpperBB = input.bool(true, "Parabolic BUY Requires Upper BB Break", group = groupParabolic)
 
+groupBounce = "ZeeFreaks Bounce Play Settings"
+enableBounce = input.bool(true, "Enable ZF Bounce Strategy", group = groupBounce)
+decliningDays = input.int(3, "Consecutive Bear Days Required", minval = 2, group = groupBounce)
+requireDecreasingVol = input.bool(true, "Require Lower Volume on Decline", group = groupBounce)
+rsiMaxBounce = input.float(40.0, "Max RSI for Bounce Setup (Oversold)", group = groupBounce)
+
+groupGoku = "Spyfrat Goku Play Settings"
+enableGoku = input.bool(true, "Enable Goku Precedence Pattern", group = groupGoku)
+gokuLookback = input.int(10, "Compression Lookback", minval = 3, group = groupGoku)
+
+groupFilter = "Clutter Control Filters"
+minWatchSpacing = input.int(5, "Min Bars Between Watch Warnings", minval = 1, group = groupFilter)
+
 groupSignals = "Display"
-showBuySell = input.bool(true, "Show BUY / SELL", group = groupSignals)
 showBebemon = input.bool(true, "Show Bebemon", group = groupSignals)
 showBullBear = input.bool(true, "Show Bull / Bear", group = groupSignals)
 showParabolic = input.bool(true, "Show Parabolic Signals", group = groupSignals)
+showParaWatch = input.bool(true, "Show Parabolic Watch (PARA?)", group = groupSignals)
+showBounceSignal = input.bool(true, "Show ZF Bounce Signals", group = groupSignals)
+showGokuSignal = input.bool(true, "Show Goku Play Signals", group = groupSignals)
 
 //====================================================
-// PRICE BB(50, 0.20)
+// CALCULATIONS
 //====================================================
 
 bbBasis = ta.sma(close, bbLength)
@@ -49,32 +64,63 @@ bbDev = bbMult * ta.stdev(close, bbLength)
 bbUpper = bbBasis + bbDev
 bbLower = bbBasis - bbDev
 
-//====================================================
-// RSI(30)
-//====================================================
-
 rsi = ta.rsi(close, rsiLength)
-
-//====================================================
-// RSI BOLLINGER BANDS
-//====================================================
 
 rsiBasis = ta.sma(rsi, rsiBBLength)
 rsiDev = rsiBBMult * ta.stdev(rsi, rsiBBLength)
 rsiUpper = rsiBasis + rsiDev
 rsiLower = rsiBasis - rsiDev
 
+weeklyRSI = request.security(syminfo.tickerid, "W", ta.rsi(close, rsiLength), barmerge.gaps_off, barmerge.lookahead_off)
+
 //====================================================
-// WEEKLY RSI(30)
+// ZEERFREAKS BOUNCE PLAY LOGIC
 //====================================================
 
-weeklyRSI = request.security(
-     syminfo.tickerid,
-     "W",
-     ta.rsi(close, rsiLength),
-     barmerge.gaps_off,
-     barmerge.lookahead_off
-)
+isRedBar = close < open
+consecutiveRed = true
+for i = 0 to decliningDays - 1
+    if not isRedBar[i]
+        consecutiveRed := false
+
+volDecreasing = volume < volume[1] and volume[1] < volume[2]
+volFilterPassed = not requireDecreasingVol or volDecreasing
+
+bodySize = math.abs(close - open)
+rangeSize = high - low
+upperWick = high - math.max(close, open)
+lowerWick = math.min(close, open) - low
+
+isDoji = rangeSize > 0 and (bodySize / rangeSize) <= 0.10
+isHammer = lowerWick >= (bodySize * 2) and upperWick <= (bodySize * 0.5)
+isInvHammer = upperWick >= (bodySize * 2) and lowerWick <= (bodySize * 0.5)
+isReversalCandle = isHammer or isInvHammer or isDoji
+
+isOversold = rsi <= rsiMaxBounce
+
+zfBounceBuy = enableBounce and consecutiveRed and volFilterPassed and isReversalCandle and isOversold and barstate.isconfirmed
+
+//====================================================
+// SPYFRAT GOKU PRECEDENCE PLAY
+//====================================================
+
+// Goku condition: Tight price compression/squeeze in a high RSI bull territory, followed by a breakout
+atrVal = ta.atr(14)
+atrAvg = ta.sma(atrVal, 20)
+isCompressed = atrVal < (atrAvg * 0.8) // Tight volatility range (pennant/flag/wedge)
+
+// Check if recent bars were compressed
+wasCompressed = ta.lowest(isCompressed ? 1 : 0, gokuLookback) == 1
+
+// Goku triggers when breaking out of compression with strong bullish RSI
+gokuBreakout = ta.crossover(close, bbUpper) or ta.crossover(rsi, 60)
+gokuPlayRaw = enableGoku and wasCompressed and gokuBreakout and rsi >= 55 and close > bbBasis and barstate.isconfirmed
+
+var int lastGokuBar = -999
+gokuPlay = false
+if gokuPlayRaw and (bar_index - lastGokuBar >= minWatchSpacing)
+    gokuPlay := true
+    lastGokuBar := bar_index
 
 //====================================================
 // BULL / BEAR
@@ -97,13 +143,8 @@ bbInteraction = nearUpperBB or nearBasisBB
 barsSinceBB = ta.barssince(bbInteraction)
 recentBBInteraction = not na(barsSinceBB) and barsSinceBB <= bebemonLookback
 
-rsiApproachingBull = rsi >= rsiBull - 5 and rsi <= rsiBull + 10
 rsiCrossBull = ta.crossover(rsi, rsiBull)
 rsiConfirmedBull = rsi > rsiBull
-
-// Trigger Bebemon Watch ONLY on the first bar it qualifies
-bebemonWatchRaw = recentBBInteraction and rsiApproachingBull and barstate.isconfirmed
-bebemonWatch = bebemonWatchRaw and not bebemonWatchRaw[1] 
 
 bebemonPriceBreak = ta.crossover(close, bbUpper)
 bebemonRSIConfirm = not requireRSICross or rsiCrossBull
@@ -111,25 +152,27 @@ bebemonRSIConfirm = not requireRSICross or rsiCrossBull
 bebemonBuy = bebemonPriceBreak and rsiConfirmedBull and bebemonRSIConfirm and barstate.isconfirmed
 
 //====================================================
-// PARABOLIC STATE
+// PARABOLIC STATE & PARABOLIC WATCH (PARA?)
 //====================================================
 
 dailyParabolic = rsi > rsiPara
 weeklyParabolic = weeklyRSI > rsiPara
 parabolicState = dailyParabolic and weeklyParabolic
-
 parabolicHealthy = parabolicState and weeklyRSI >= rsi
 
-// PHR & ePHR: Filtered to fire ONCE when entering the condition
+paraWatchRaw = rsi >= (rsiPara - 5) and rsi < rsiPara and weeklyRSI >= 65 and barstate.isconfirmed
+
+var int lastParaWatchBar = -999
+paraWatch = false
+if paraWatchRaw and (bar_index - lastParaWatchBar >= minWatchSpacing)
+    paraWatch := true
+    lastParaWatchBar := bar_index
+
 phrRaw = parabolicState and rsi > weeklyRSI
-phr = phrRaw and not phrRaw[1]
-
 ephrRaw = rsi > rsiEphr and weeklyRSI > rsiEphr
-ephr = ephrRaw and not ephrRaw[1]
 
-//====================================================
-// PARABOLIC BUY & SELL
-//====================================================
+phr = ta.rising(rsi, 1) and phrRaw and not phrRaw[1]
+ephr = ephrRaw and not ephrRaw[1]
 
 paraPriceCondition = close > bbUpper
 paraPriceBreak = ta.crossover(close, bbUpper)
@@ -144,21 +187,38 @@ if parabolicState
 
 paraRSIFailure = wasParabolic and ta.crossunder(rsi, rsiPara)
 
-// Fire Parabolic Sell on the initial trigger instead of every bar
 parabolicSell = enableParaSell and (ephr or paraRSIFailure) and barstate.isconfirmed
 
 if paraRSIFailure
     wasParabolic := false
 
 //====================================================
-// NORMAL BUY / SELL
+// REGIME & STATE BUY/SELL FILTERING
 //====================================================
 
-normalSell = (ta.crossunder(rsi, rsiBull) or ta.crossunder(close, bbBasis)) and barstate.isconfirmed and not parabolicSell
-normalBuy = bullSignal and not bebemonBuy and not parabolicBuy
+var int exit3rdDayCounter = 0
+var bool inPosition = false
+
+if bebemonBuy or parabolicBuy or bullSignal or zfBounceBuy or gokuPlay
+    inPosition := true
+    exit3rdDayCounter := 0
+
+if inPosition
+    exit3rdDayCounter += 1
+
+zf3rdDayExit = enableBounce and inPosition and exit3rdDayCounter == 3 and barstate.isconfirmed
+
+normalSellRaw = (ta.crossunder(rsi, rsiBull) or ta.crossunder(close, bbBasis)) and barstate.isconfirmed and not parabolicSell
+
+normalSell = (normalSellRaw or zf3rdDayExit) and inPosition
+if normalSell or parabolicSell
+    inPosition := false
+    exit3rdDayCounter := 0
+
+normalBuy = bullSignal and not bebemonBuy and not parabolicBuy and not zfBounceBuy and not gokuPlay
 
 //====================================================
-// RSI PANE PLOTS
+// PLOTS
 //====================================================
 
 plot(rsi, title = "RSI 30", color = color.white, linewidth = 2)
@@ -170,34 +230,27 @@ hline(50, "RSI 50", color = color.gray, linestyle = hline.style_dashed)
 hline(70, "RSI 70", color = color.orange, linestyle = hline.style_dashed)
 hline(80, "RSI 80", color = color.red, linestyle = hline.style_dashed)
 
-// Signals in RSI Pane
 plotshape(showBullBear and bullSignal, title = "Bull", style = shape.labelup, location = location.bottom, color = color.green, textcolor = color.white, text = "Bull", size = size.tiny)
 plotshape(showBullBear and bearSignal, title = "Bear", style = shape.labeldown, location = location.top, color = color.red, textcolor = color.white, text = "Bear", size = size.tiny)
-
-//====================================================
-// MAIN CHART OVERLAYS
-//====================================================
 
 plot(bbUpper, title = "Price BB Upper", color = color.blue, linewidth = 1, force_overlay = true)
 plot(bbBasis, title = "Price BB Basis", color = color.orange, linewidth = 2, force_overlay = true)
 plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth = 1, force_overlay = true)
 
-plotshape(showBebemon and bebemonWatch and not bebemonBuy, title = "Bebemon Watch", style = shape.labelup, location = location.belowbar, color = color.yellow, textcolor = color.black, text = "BEBE?", size = size.tiny, force_overlay = true)
+// Watch Plots
+plotshape(showParaWatch and paraWatch and not parabolicBuy, title = "Parabolic Watch", style = shape.labelup, location = location.belowbar, color = color.yellow, textcolor = color.black, text = "PARA?", size = size.tiny, force_overlay = true)
+
+// Special Signal Plots
+plotshape(showGokuSignal and gokuPlay, title = "Goku Play", style = shape.labelup, location = location.belowbar, color = color.purple, textcolor = color.white, text = "GOKU", size = size.small, force_overlay = true)
 plotshape(showBebemon and bebemonBuy, title = "Bebemon BUY", style = shape.labelup, location = location.belowbar, color = color.green, textcolor = color.white, text = "BEBEMON", size = size.small, force_overlay = true)
-
-plotshape(showBuySell and normalBuy, title = "BUY", style = shape.labelup, location = location.belowbar, color = color.lime, textcolor = color.black, text = "BUY", size = size.tiny, force_overlay = true)
-plotshape(showParabolic and parabolicBuy, title = "Parabolic BUY", style = shape.labelup, location = location.belowbar, color = color.aqua, textcolor = color.black, text = "PARA BUY", size = size.small, force_overlay = true)
-
-plotshape(showBuySell and normalSell, title = "SELL", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "SELL", size = size.small, force_overlay = true)
-plotshape(showParabolic and parabolicSell, title = "Parabolic SELL", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "PARA SELL", size = size.small, force_overlay = true)
-
+plotshape(showBounceSignal and zfBounceBuy, title = "ZF BOUNCE BUY", style = shape.labelup, location = location.belowbar, color = color.fuchsia, textcolor = color.white, text = "ZF BOUNCE", size = size.small, force_overlay = true)
 plotshape(showParabolic and phr and not ephr, title = "PHR", style = shape.labeldown, location = location.abovebar, color = color.orange, textcolor = color.white, text = "PHR", size = size.tiny, force_overlay = true)
 plotshape(showParabolic and ephr, title = "ePHR", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "ePHR", size = size.tiny, force_overlay = true)
 
-//====================================================
-// ALERTS
-//====================================================
-
+// Alerts
+alertcondition(gokuPlay, title = "Goku Play", message = "SPYFRAT: GOKU PRECEDENCE PLAY TRIGGERED")
+alertcondition(paraWatch, title = "Parabolic Watch (PARA?)", message = "SPYFRAT: APPROACHING PARABOLIC STATE (PARA?)")
+alertcondition(zfBounceBuy, title = "ZF Bounce BUY", message = "SPYFRAT: ZF BOUNCE PLAY BUY TRIGGERED")
 alertcondition(bebemonBuy, title = "Bebemon BUY", message = "SPYFRAT: BEBEMON BUY")
 alertcondition(parabolicBuy, title = "Parabolic BUY", message = "SPYFRAT: PARABOLIC BUY")
 alertcondition(normalBuy, title = "BUY", message = "SPYFRAT: BUY")
