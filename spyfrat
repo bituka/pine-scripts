@@ -1,7 +1,7 @@
 //@version=6
 indicator(
-     "Spyfrat All-in-One",
-     shorttitle = "Spyfrat AIO",
+     "Spyfrat All-in-One v3 (Clean)",
+     shorttitle = "Spyfrat AIO v3",
      overlay = false,
      precision = 2
 )
@@ -10,60 +10,42 @@ indicator(
 // INPUTS
 //====================================================
 
-groupBB = "Bollinger Bands"
+groupBB = "Price Bollinger Bands"
 bbLength = input.int(50, "BB Length", minval = 1, group = groupBB)
-bbMult   = input.float(0.20, "BB Deviation", step = 0.01, group = groupBB)
+bbMult = input.float(0.20, "BB Deviation", step = 0.01, group = groupBB)
 
 groupRSI = "RSI"
 rsiLength = input.int(30, "RSI Length", minval = 1, group = groupRSI)
-rsiBull   = input.float(50.0, "Bull/Bear Level", group = groupRSI)
-rsiPara   = input.float(70.0, "Parabolic Level", group = groupRSI)
-rsiEphr   = input.float(80.0, "ePHR Level", group = groupRSI)
+rsiBull = input.float(50, "Bull/Bear Level", group = groupRSI)
+rsiPara = input.float(70, "Parabolic Level", group = groupRSI)
+rsiEphr = input.float(80, "ePHR Level", group = groupRSI)
 
 groupRSIBB = "RSI Bollinger Bands"
 rsiBBLength = input.int(30, "RSI BB Length", minval = 1, group = groupRSIBB)
-rsiBBMult   = input.float(0.20, "RSI BB Deviation", step = 0.01, group = groupRSIBB)
+rsiBBMult = input.float(0.20, "RSI BB Deviation", step = 0.01, group = groupRSIBB)
 
-groupSignals = "Signals"
+groupBebemon = "Bebemon"
+bebemonLookback = input.int(10, "Setup Lookback", minval = 2, group = groupBebemon)
+bebemonTolerance = input.float(1.0, "BB Interaction Tolerance %", step = 0.1, group = groupBebemon)
+requireRSICross = input.bool(true, "Require RSI Cross Above 50", group = groupBebemon)
 
-useWeeklyConfirmation = input.bool(
-     false,
-     "Require Weekly RSI Confirmation",
-     group = groupSignals
-)
+groupParabolic = "Parabolic Trading"
+enableParaBuy = input.bool(true, "Enable Parabolic BUY", group = groupParabolic)
+enableParaSell = input.bool(true, "Enable Parabolic SELL", group = groupParabolic)
+requireUpperBB = input.bool(true, "Parabolic BUY Requires Upper BB Break", group = groupParabolic)
 
-useBreakoutConfirmation = input.bool(
-     true,
-     "Require Price Breakout",
-     group = groupSignals
-)
-
-showBuySell = input.bool(
-     true,
-     "Show BUY / SELL",
-     group = groupSignals
-)
-
-showParabolic = input.bool(
-     true,
-     "Show PHR / ePHR",
-     group = groupSignals
-)
-
-showBullBear = input.bool(
-     true,
-     "Show Bull / Bear",
-     group = groupSignals
-)
+groupSignals = "Display"
+showBuySell = input.bool(true, "Show BUY / SELL", group = groupSignals)
+showBebemon = input.bool(true, "Show Bebemon", group = groupSignals)
+showBullBear = input.bool(true, "Show Bull / Bear", group = groupSignals)
+showParabolic = input.bool(true, "Show Parabolic Signals", group = groupSignals)
 
 //====================================================
-// PRICE BOLLINGER BANDS
-// Spyfrat BB(50, 0.20)
+// PRICE BB(50, 0.20)
 //====================================================
 
 bbBasis = ta.sma(close, bbLength)
-bbDev   = bbMult * ta.stdev(close, bbLength)
-
+bbDev = bbMult * ta.stdev(close, bbLength)
 bbUpper = bbBasis + bbDev
 bbLower = bbBasis - bbDev
 
@@ -78,8 +60,7 @@ rsi = ta.rsi(close, rsiLength)
 //====================================================
 
 rsiBasis = ta.sma(rsi, rsiBBLength)
-rsiDev   = rsiBBMult * ta.stdev(rsi, rsiBBLength)
-
+rsiDev = rsiBBMult * ta.stdev(rsi, rsiBBLength)
 rsiUpper = rsiBasis + rsiDev
 rsiLower = rsiBasis - rsiDev
 
@@ -96,327 +77,133 @@ weeklyRSI = request.security(
 )
 
 //====================================================
-// BULL / BEAR CONDITIONS
-//
-// These are intentionally based on RSI 50,
-// which is the important trend divider in this system.
+// BULL / BEAR
 //====================================================
 
-bullCondition = rsi > rsiBull
-bearCondition = rsi < rsiBull
-
-bullSignal = (
-     ta.crossover(rsi, rsiBull)
-     and
-     barstate.isconfirmed
-)
-
-bearSignal = (
-     ta.crossunder(rsi, rsiBull)
-     and
-     barstate.isconfirmed
-)
+bullSignal = ta.crossover(rsi, rsiBull) and barstate.isconfirmed
+bearSignal = ta.crossunder(rsi, rsiBull) and barstate.isconfirmed
 
 //====================================================
-// WEEKLY CONFIRMATION
+// BEBEMON
 //====================================================
 
-weeklyBull = weeklyRSI > rsiBull
-weeklyBear = weeklyRSI < rsiBull
+upperTolerance = bbUpper * (bebemonTolerance / 100)
+basisTolerance = math.abs(bbBasis) * (bebemonTolerance / 100)
+
+nearUpperBB = math.abs(close - bbUpper) <= upperTolerance
+nearBasisBB = math.abs(close - bbBasis) <= basisTolerance
+bbInteraction = nearUpperBB or nearBasisBB
+
+barsSinceBB = ta.barssince(bbInteraction)
+recentBBInteraction = not na(barsSinceBB) and barsSinceBB <= bebemonLookback
+
+rsiApproachingBull = rsi >= rsiBull - 5 and rsi <= rsiBull + 10
+rsiCrossBull = ta.crossover(rsi, rsiBull)
+rsiConfirmedBull = rsi > rsiBull
+
+// Trigger Bebemon Watch ONLY on the first bar it qualifies
+bebemonWatchRaw = recentBBInteraction and rsiApproachingBull and barstate.isconfirmed
+bebemonWatch = bebemonWatchRaw and not bebemonWatchRaw[1] 
+
+bebemonPriceBreak = ta.crossover(close, bbUpper)
+bebemonRSIConfirm = not requireRSICross or rsiCrossBull
+
+bebemonBuy = bebemonPriceBreak and rsiConfirmedBull and bebemonRSIConfirm and barstate.isconfirmed
 
 //====================================================
-// BUY LOGIC
-//
-// Base condition:
-// RSI > 50
-//
-// Optional stronger confirmation:
-// Price crosses above BB upper.
-//
-// Weekly confirmation is optional.
-//====================================================
-
-priceBreakoutUp = ta.crossover(close, bbUpper)
-
-buyBase =
-     bullCondition and
-     (
-         not useBreakoutConfirmation
-         or priceBreakoutUp
-     )
-
-buySignal =
-     buyBase and
-     (
-         not useWeeklyConfirmation
-         or weeklyBull
-     ) and
-     barstate.isconfirmed
-
-//====================================================
-// SELL LOGIC
-//
-// Base condition:
-// RSI < 50
-//
-// Optional stronger confirmation:
-// Price crosses below BB lower.
-//
-// Weekly confirmation is optional.
-//====================================================
-
-priceBreakoutDown = ta.crossunder(close, bbLower)
-
-sellBase =
-     bearCondition and
-     (
-         not useBreakoutConfirmation
-         or priceBreakoutDown
-     )
-
-sellSignal =
-     sellBase and
-     (
-         not useWeeklyConfirmation
-         or weeklyBear
-     ) and
-     barstate.isconfirmed
-
-//====================================================
-// PARABOLIC CONDITIONS
+// PARABOLIC STATE
 //====================================================
 
 dailyParabolic = rsi > rsiPara
 weeklyParabolic = weeklyRSI > rsiPara
+parabolicState = dailyParabolic and weeklyParabolic
 
-parabolic =
-     dailyParabolic and
-     weeklyParabolic
+parabolicHealthy = parabolicState and weeklyRSI >= rsi
 
-// Daily RSI stronger than Weekly RSI
-phr =
-     parabolic and
-     rsi > weeklyRSI
+// PHR & ePHR: Filtered to fire ONCE when entering the condition
+phrRaw = parabolicState and rsi > weeklyRSI
+phr = phrRaw and not phrRaw[1]
 
-// Both Daily and Weekly RSI above 80
-ephr =
-     rsi > rsiEphr and
-     weeklyRSI > rsiEphr
+ephrRaw = rsi > rsiEphr and weeklyRSI > rsiEphr
+ephr = ephrRaw and not ephrRaw[1]
 
 //====================================================
-// RSI PANE
+// PARABOLIC BUY & SELL
 //====================================================
 
-// RSI
-plot(
-     rsi,
-     title = "RSI 30",
-     color = color.white,
-     linewidth = 2
-)
+paraPriceCondition = close > bbUpper
+paraPriceBreak = ta.crossover(close, bbUpper)
+paraRSIEntry = ta.crossover(rsi, rsiPara)
+paraBuyTrigger = paraRSIEntry or paraPriceBreak
 
-// RSI BB basis
-plot(
-     rsiBasis,
-     title = "RSI BB Basis",
-     color = color.orange,
-     linewidth = 2
-)
+parabolicBuy = enableParaBuy and parabolicHealthy and (not requireUpperBB or paraPriceCondition) and paraBuyTrigger and barstate.isconfirmed
 
-// RSI BB upper
-plot(
-     rsiUpper,
-     title = "RSI BB Upper",
-     color = color.blue,
-     linewidth = 1
-)
+var bool wasParabolic = false
+if parabolicState
+    wasParabolic := true
 
-// RSI BB lower
-plot(
-     rsiLower,
-     title = "RSI BB Lower",
-     color = color.blue,
-     linewidth = 1
-)
+paraRSIFailure = wasParabolic and ta.crossunder(rsi, rsiPara)
+
+// Fire Parabolic Sell on the initial trigger instead of every bar
+parabolicSell = enableParaSell and (ephr or paraRSIFailure) and barstate.isconfirmed
+
+if paraRSIFailure
+    wasParabolic := false
 
 //====================================================
-// RSI LEVELS
+// NORMAL BUY / SELL
 //====================================================
 
-hline(
-     50,
-     "RSI 50",
-     color = color.gray,
-     linestyle = hline.style_dashed
-)
-
-hline(
-     70,
-     "RSI 70",
-     color = color.orange,
-     linestyle = hline.style_dashed
-)
-
-hline(
-     80,
-     "RSI 80",
-     color = color.red,
-     linestyle = hline.style_dashed
-)
+normalSell = (ta.crossunder(rsi, rsiBull) or ta.crossunder(close, bbBasis)) and barstate.isconfirmed and not parabolicSell
+normalBuy = bullSignal and not bebemonBuy and not parabolicBuy
 
 //====================================================
-// RSI BULL / BEAR LABELS
+// RSI PANE PLOTS
 //====================================================
 
-plotshape(
-     showBullBear and bullSignal,
-     title = "Bull",
-     style = shape.labelup,
-     location = location.bottom,
-     color = color.green,
-     textcolor = color.white,
-     text = "Bull",
-     size = size.tiny
-)
+plot(rsi, title = "RSI 30", color = color.white, linewidth = 2)
+plot(rsiBasis, title = "RSI BB Basis", color = color.orange, linewidth = 2)
+plot(rsiUpper, title = "RSI BB Upper", color = color.blue, linewidth = 1)
+plot(rsiLower, title = "RSI BB Lower", color = color.blue, linewidth = 1)
 
-plotshape(
-     showBullBear and bearSignal,
-     title = "Bear",
-     style = shape.labeldown,
-     location = location.top,
-     color = color.red,
-     textcolor = color.white,
-     text = "Bear",
-     size = size.tiny
-)
+hline(50, "RSI 50", color = color.gray, linestyle = hline.style_dashed)
+hline(70, "RSI 70", color = color.orange, linestyle = hline.style_dashed)
+hline(80, "RSI 80", color = color.red, linestyle = hline.style_dashed)
+
+// Signals in RSI Pane
+plotshape(showBullBear and bullSignal, title = "Bull", style = shape.labelup, location = location.bottom, color = color.green, textcolor = color.white, text = "Bull", size = size.tiny)
+plotshape(showBullBear and bearSignal, title = "Bear", style = shape.labeldown, location = location.top, color = color.red, textcolor = color.white, text = "Bear", size = size.tiny)
 
 //====================================================
-// PRICE BBs
-//
-// These are displayed on the MAIN PRICE CHART
-// while RSI remains in this indicator's pane.
+// MAIN CHART OVERLAYS
 //====================================================
 
-plot(
-     bbUpper,
-     title = "Price BB Upper",
-     color = color.blue,
-     linewidth = 1,
-     force_overlay = true
-)
+plot(bbUpper, title = "Price BB Upper", color = color.blue, linewidth = 1, force_overlay = true)
+plot(bbBasis, title = "Price BB Basis", color = color.orange, linewidth = 2, force_overlay = true)
+plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth = 1, force_overlay = true)
 
-plot(
-     bbBasis,
-     title = "Price BB Basis",
-     color = color.orange,
-     linewidth = 2,
-     force_overlay = true
-)
+plotshape(showBebemon and bebemonWatch and not bebemonBuy, title = "Bebemon Watch", style = shape.labelup, location = location.belowbar, color = color.yellow, textcolor = color.black, text = "BEBE?", size = size.tiny, force_overlay = true)
+plotshape(showBebemon and bebemonBuy, title = "Bebemon BUY", style = shape.labelup, location = location.belowbar, color = color.green, textcolor = color.white, text = "BEBEMON", size = size.small, force_overlay = true)
 
-plot(
-     bbLower,
-     title = "Price BB Lower",
-     color = color.blue,
-     linewidth = 1,
-     force_overlay = true
-)
+plotshape(showBuySell and normalBuy, title = "BUY", style = shape.labelup, location = location.belowbar, color = color.lime, textcolor = color.black, text = "BUY", size = size.tiny, force_overlay = true)
+plotshape(showParabolic and parabolicBuy, title = "Parabolic BUY", style = shape.labelup, location = location.belowbar, color = color.aqua, textcolor = color.black, text = "PARA BUY", size = size.small, force_overlay = true)
 
-//====================================================
-// BUY / SELL MARKERS
-//====================================================
+plotshape(showBuySell and normalSell, title = "SELL", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "SELL", size = size.small, force_overlay = true)
+plotshape(showParabolic and parabolicSell, title = "Parabolic SELL", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "PARA SELL", size = size.small, force_overlay = true)
 
-plotshape(
-     showBuySell and buySignal,
-     title = "BUY",
-     style = shape.labelup,
-     location = location.belowbar,
-     color = color.green,
-     textcolor = color.white,
-     text = "BUY",
-     size = size.small,
-     force_overlay = true
-)
-
-plotshape(
-     showBuySell and sellSignal,
-     title = "SELL",
-     style = shape.labeldown,
-     location = location.abovebar,
-     color = color.red,
-     textcolor = color.white,
-     text = "SELL",
-     size = size.small,
-     force_overlay = true
-)
-
-//====================================================
-// PHR WARNING
-//====================================================
-
-plotshape(
-     showParabolic and phr and not ephr,
-     title = "PHR",
-     style = shape.labeldown,
-     location = location.abovebar,
-     color = color.orange,
-     textcolor = color.white,
-     text = "PHR",
-     size = size.tiny,
-     force_overlay = true
-)
-
-//====================================================
-// ePHR WARNING
-//====================================================
-
-plotshape(
-     showParabolic and ephr,
-     title = "ePHR",
-     style = shape.labeldown,
-     location = location.abovebar,
-     color = color.red,
-     textcolor = color.white,
-     text = "ePHR",
-     size = size.tiny,
-     force_overlay = true
-)
+plotshape(showParabolic and phr and not ephr, title = "PHR", style = shape.labeldown, location = location.abovebar, color = color.orange, textcolor = color.white, text = "PHR", size = size.tiny, force_overlay = true)
+plotshape(showParabolic and ephr, title = "ePHR", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "ePHR", size = size.tiny, force_overlay = true)
 
 //====================================================
 // ALERTS
 //====================================================
 
-alertcondition(
-     buySignal,
-     title = "Spyfrat BUY",
-     message = "SPYFRAT BUY — confirmed candle"
-)
-
-alertcondition(
-     sellSignal,
-     title = "Spyfrat SELL",
-     message = "SPYFRAT SELL — confirmed candle"
-)
-
-alertcondition(
-     bullSignal,
-     title = "Spyfrat Bull",
-     message = "SPYFRAT BULL — RSI crossed above 50"
-)
-
-alertcondition(
-     bearSignal,
-     title = "Spyfrat Bear",
-     message = "SPYFRAT BEAR — RSI crossed below 50"
-)
-
-alertcondition(
-     phr,
-     title = "Spyfrat PHR",
-     message = "SPYFRAT PHR — Daily and Weekly RSI are above 70"
-)
-
-alertcondition(
-     ephr,
-     title = "Spyfrat ePHR",
-     message = "SPYFRAT ePHR — Daily and Weekly RSI are above 80"
-)
+alertcondition(bebemonBuy, title = "Bebemon BUY", message = "SPYFRAT: BEBEMON BUY")
+alertcondition(parabolicBuy, title = "Parabolic BUY", message = "SPYFRAT: PARABOLIC BUY")
+alertcondition(normalBuy, title = "BUY", message = "SPYFRAT: BUY")
+alertcondition(parabolicSell, title = "Parabolic SELL", message = "SPYFRAT: PARABOLIC SELL")
+alertcondition(normalSell, title = "SELL", message = "SPYFRAT: SELL")
+alertcondition(phr, title = "PHR", message = "SPYFRAT: PHR - TRAIL / TAKE PROFITS")
+alertcondition(ephr, title = "ePHR", message = "SPYFRAT: ePHR - SELL ON SIGHT")
+alertcondition(bullSignal, title = "Bull", message = "SPYFRAT: RSI30 crossed above 50")
+alertcondition(bearSignal, title = "Bear", message = "SPYFRAT: RSI30 crossed below 50")
