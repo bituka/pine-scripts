@@ -2,6 +2,8 @@
 
 A collection of TradingView Pine Script indicators for technical analysis and trading strategies.
 
+If you like my Pine Scripts or are just feeling happy, feel free to donate.
+
 [![Donate with PayPal](https://img.shields.io/badge/Donate%20with-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/garrykeneth)
 
 ## Indicators
