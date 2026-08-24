@@ -1,5 +1,9 @@
 # Pine Scripts
 
+Hello Tech Traders!
+
+I am a fan of Spyfrat's Trading System. I have coded some strategies I use with useful labels. I also added a Fibonacci retracement for bounce plays.
+
 A collection of TradingView Pine Script indicators for technical analysis and trading strategies.
 
 If you like my Pine Scripts or are just feeling happy, feel free to donate.
