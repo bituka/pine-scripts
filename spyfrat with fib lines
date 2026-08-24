@@ -44,6 +44,10 @@ groupGoku = "Spyfrat Goku Play Settings"
 enableGoku = input.bool(true, "Enable Goku Precedence Pattern", group = groupGoku)
 gokuLookback = input.int(10, "Compression Lookback", minval = 3, group = groupGoku)
 
+groupFib = "Fibonacci Retracements"
+showFib = input.bool(true, "Show Fibonacci Lines", group = groupFib)
+fibLen = input.int(55, "Fib Lookback Length", minval = 2, group = groupFib)
+
 groupFilter = "Clutter Control Filters"
 minWatchSpacing = input.int(5, "Min Bars Between Watch Warnings", minval = 1, group = groupFilter)
 
@@ -72,6 +76,20 @@ rsiUpper = rsiBasis + rsiDev
 rsiLower = rsiBasis - rsiDev
 
 weeklyRSI = request.security(syminfo.tickerid, "W", ta.rsi(close, rsiLength), barmerge.gaps_off, barmerge.lookahead_off)
+
+//====================================================
+// FIBONACCI CALCULATIONS (0.786 TO 0.236 ONLY)
+//====================================================
+
+highestHigh = ta.highest(high, fibLen)
+lowestLow   = ta.lowest(low, fibLen)
+fibRange    = highestHigh - lowestLow
+
+fib786 = lowestLow + fibRange * 0.786
+fib618 = lowestLow + fibRange * 0.618
+fib500 = lowestLow + fibRange * 0.500
+fib382 = lowestLow + fibRange * 0.382
+fib236 = lowestLow + fibRange * 0.236
 
 //====================================================
 // ZEERFREAKS BOUNCE PLAY LOGIC
@@ -104,15 +122,12 @@ zfBounceBuy = enableBounce and consecutiveRed and volFilterPassed and isReversal
 // SPYFRAT GOKU PRECEDENCE PLAY
 //====================================================
 
-// Goku condition: Tight price compression/squeeze in a high RSI bull territory, followed by a breakout
 atrVal = ta.atr(14)
 atrAvg = ta.sma(atrVal, 20)
-isCompressed = atrVal < (atrAvg * 0.8) // Tight volatility range (pennant/flag/wedge)
+isCompressed = atrVal < (atrAvg * 0.8)
 
-// Check if recent bars were compressed
 wasCompressed = ta.lowest(isCompressed ? 1 : 0, gokuLookback) == 1
 
-// Goku triggers when breaking out of compression with strong bullish RSI
 gokuBreakout = ta.crossover(close, bbUpper) or ta.crossover(rsi, 60)
 gokuPlayRaw = enableGoku and wasCompressed and gokuBreakout and rsi >= 55 and close > bbBasis and barstate.isconfirmed
 
@@ -233,13 +248,16 @@ hline(80, "RSI 80", color = color.red, linestyle = hline.style_dashed)
 plotshape(showBullBear and bullSignal, title = "Bull", style = shape.labelup, location = location.bottom, color = color.green, textcolor = color.white, text = "Bull", size = size.tiny)
 plotshape(showBullBear and bearSignal, title = "Bear", style = shape.labeldown, location = location.top, color = color.red, textcolor = color.white, text = "Bear", size = size.tiny)
 
-// Price Bollinger Bands with Background Fill
 plot(bbUpper, title = "Price BB Upper", color = color.blue, linewidth = 1, force_overlay = true)
 plot(bbBasis, title = "Price BB Basis", color = color.orange, linewidth = 2, force_overlay = true)
 plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth = 1, force_overlay = true)
 
-// ADDED: Light gray background with 50% opacity between BB Upper and BB Lower
-fill(plot(bbUpper, force_overlay = true), plot(bbLower, force_overlay = true), color = color.new(color.gray, 50))
+// Fibonacci Plots (Dashed / Broken Lines on Price Overlay)
+plot(showFib ? fib786 : na, title = "Fib 0.786", color = color.orange, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib618 : na, title = "Fib 0.618", color = color.yellow, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib500 : na, title = "Fib 0.500", color = color.green,  linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib382 : na, title = "Fib 0.382", color = color.teal,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib236 : na, title = "Fib 0.236", color = color.blue,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 
 // Watch Plots
 plotshape(showParaWatch and paraWatch and not parabolicBuy, title = "Parabolic Watch", style = shape.labelup, location = location.belowbar, color = color.yellow, textcolor = color.black, text = "PARA?", size = size.tiny, force_overlay = true)
