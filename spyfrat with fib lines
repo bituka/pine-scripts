@@ -287,4 +287,4 @@ alertcondition(normalSell, title = "SELL", message = "SPYFRAT: SELL")
 alertcondition(phr, title = "PHR", message = "SPYFRAT: PHR - TRAIL / TAKE PROFITS")
 alertcondition(ephr, title = "ePHR", message = "SPYFRAT: ePHR - SELL ON SIGHT")
 alertcondition(bullSignal, title = "Bull", message = "SPYFRAT: RSI30 crossed above 50")
-alertcondition(bearSignal, title = "Bear", message = "SPYFRAT: RSI30 crossed below 50")
+alertcondition(bearSignal, title = "Bear", message = "SPYFRAT: RSI30 crossed below 5

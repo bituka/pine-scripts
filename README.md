@@ -2,6 +2,8 @@
 
 A collection of TradingView Pine Script indicators for technical analysis and trading strategies.
 
+[![Donate with PayPal](https://img.shields.io/badge/Donate%20with-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/garrykeneth)
+
 ## Indicators
 
 ### Spyfrat All-in-One v3 + ZF Bounce + Goku
