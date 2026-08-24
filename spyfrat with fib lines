@@ -238,8 +238,11 @@ normalBuy = bullSignal and not bebemonBuy and not parabolicBuy and not zfBounceB
 
 plot(rsi, title = "RSI 30", color = color.white, linewidth = 2)
 plot(rsiBasis, title = "RSI BB Basis", color = color.orange, linewidth = 2)
-plot(rsiUpper, title = "RSI BB Upper", color = color.blue, linewidth = 1)
-plot(rsiLower, title = "RSI BB Lower", color = color.blue, linewidth = 1)
+rsiPUpper = plot(rsiUpper, title = "RSI BB Upper", color = color.blue, linewidth = 1)
+rsiPLower = plot(rsiLower, title = "RSI BB Lower", color = color.blue, linewidth = 1)
+
+// RSI BB Shading (Light Gray with 50% Transparency)
+fill(rsiPUpper, rsiPLower, color = color.new(color.gray, 50), title = "RSI BB Background Fill")
 
 hline(50, "RSI 50", color = color.gray, linestyle = hline.style_dashed)
 hline(70, "RSI 70", color = color.orange, linestyle = hline.style_dashed)
@@ -248,9 +251,12 @@ hline(80, "RSI 80", color = color.red, linestyle = hline.style_dashed)
 plotshape(showBullBear and bullSignal, title = "Bull", style = shape.labelup, location = location.bottom, color = color.green, textcolor = color.white, text = "Bull", size = size.tiny)
 plotshape(showBullBear and bearSignal, title = "Bear", style = shape.labeldown, location = location.top, color = color.red, textcolor = color.white, text = "Bear", size = size.tiny)
 
-plot(bbUpper, title = "Price BB Upper", color = color.blue, linewidth = 1, force_overlay = true)
-plot(bbBasis, title = "Price BB Basis", color = color.orange, linewidth = 2, force_overlay = true)
-plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth = 1, force_overlay = true)
+pUpper = plot(bbUpper, title = "Price BB Upper", color = color.blue, linewidth = 1, force_overlay = true)
+pBasis = plot(bbBasis, title = "Price BB Basis", color = color.orange, linewidth = 2, force_overlay = true)
+pLower = plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth = 1, force_overlay = true)
+
+// Price BB Shading (Light Gray with 50% Transparency)
+fill(pUpper, pLower, color = color.new(color.gray, 50), title = "Price BB Background Fill")
 
 // Fibonacci Plots (Dashed / Broken Lines on Price Overlay)
 plot(showFib ? fib786 : na, title = "Fib 0.786", color = color.orange, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
