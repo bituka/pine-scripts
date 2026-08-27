@@ -1,0 +1,294 @@
+//@version=6
+indicator(
+     "Spyfrat All-in-One v3 + ZF Bounce + Goku",
+     shorttitle = "Spyfrat AIO v3 Full",
+     overlay = false,
+     precision = 2
+)
+
+//====================================================
+// INPUTS
+//====================================================
+
+groupBB = "Price Bollinger Bands"
+bbLength = input.int(50, "BB Length", minval = 1, group = groupBB)
+bbMult = input.float(0.20, "BB Deviation", step = 0.01, group = groupBB)
+
+groupRSI = "RSI"
+rsiLength = input.int(30, "RSI Length", minval = 1, group = groupRSI)
+rsiBull = input.float(50, "Bull/Bear Level", group = groupRSI)
+rsiPara = input.float(70, "Parabolic Level", group = groupRSI)
+rsiEphr = input.float(80, "ePHR Level", group = groupRSI)
+
+groupRSIBB = "RSI Bollinger Bands"
+rsiBBLength = input.int(30, "RSI BB Length", minval = 1, group = groupRSIBB)
+rsiBBMult = input.float(0.20, "RSI BB Deviation", step = 0.01, group = groupRSIBB)
+
+groupBebemon = "Bebemon"
+bebemonLookback = input.int(10, "Setup Lookback", minval = 2, group = groupBebemon)
+bebemonTolerance = input.float(1.0, "BB Interaction Tolerance %", step = 0.1, group = groupBebemon)
+requireRSICross = input.bool(true, "Require RSI Cross Above 50", group = groupBebemon)
+
+groupParabolic = "Parabolic Trading"
+enableParaBuy = input.bool(true, "Enable Parabolic BUY", group = groupParabolic)
+enableParaSell = input.bool(true, "Enable Parabolic SELL", group = groupParabolic)
+requireUpperBB = input.bool(true, "Parabolic BUY Requires Upper BB Break", group = groupParabolic)
+
+groupBounce = "ZeeFreaks Bounce Play Settings"
+enableBounce = input.bool(true, "Enable ZF Bounce Strategy", group = groupBounce)
+decliningDays = input.int(3, "Consecutive Bear Days Required", minval = 2, group = groupBounce)
+requireDecreasingVol = input.bool(true, "Require Lower Volume on Decline", group = groupBounce)
+rsiMaxBounce = input.float(40.0, "Max RSI for Bounce Setup (Oversold)", group = groupBounce)
+
+groupGoku = "Spyfrat Goku Play Settings"
+enableGoku = input.bool(true, "Enable Goku Precedence Pattern", group = groupGoku)
+gokuLookback = input.int(10, "Compression Lookback", minval = 3, group = groupGoku)
+
+groupIchi = "Ichimoku Kinko Hyo"
+showIchi = input.bool(true, "Show Ichimoku", group = groupIchi)
+conversionPeriods = input.int(9, "Conversion Line Length (Tenkan)", minval = 1, group = groupIchi)
+basePeriods = input.int(26, "Base Line Length (Kijun)", minval = 1, group = groupIchi)
+spanBPeriods = input.int(52, "Leading Span B Length", minval = 1, group = groupIchi)
+displacement = input.int(26, "Displacement (Lagging Span Offset)", minval = 1, group = groupIchi)
+
+groupFilter = "Clutter Control Filters"
+minWatchSpacing = input.int(5, "Min Bars Between Watch Warnings", minval = 1, group = groupFilter)
+
+groupSignals = "Display"
+showBebemon = input.bool(true, "Show Bebemon", group = groupSignals)
+showBullBear = input.bool(true, "Show Bull / Bear", group = groupSignals)
+showParabolic = input.bool(true, "Show Parabolic Signals", group = groupSignals)
+showParaWatch = input.bool(true, "Show Parabolic Watch (PARA?)", group = groupSignals)
+showBounceSignal = input.bool(true, "Show ZF Bounce Signals", group = groupSignals)
+showGokuSignal = input.bool(true, "Show Goku Play Signals", group = groupSignals)
+
+//====================================================
+// CALCULATIONS
+//====================================================
+
+bbBasis = ta.sma(close, bbLength)
+bbDev = bbMult * ta.stdev(close, bbLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+
+rsi = ta.rsi(close, rsiLength)
+
+rsiBasis = ta.sma(rsi, rsiBBLength)
+rsiDev = rsiBBMult * ta.stdev(rsi, rsiBBLength)
+rsiUpper = rsiBasis + rsiDev
+rsiLower = rsiBasis - rsiDev
+
+weeklyRSI = request.security(syminfo.tickerid, "W", ta.rsi(close, rsiLength), barmerge.gaps_off, barmerge.lookahead_off)
+
+//====================================================
+// ICHIMOKU CALCULATIONS
+//====================================================
+
+donchian(len) =>
+    math.avg(ta.highest(high, len), ta.lowest(low, len))
+
+conversionLine = donchian(conversionPeriods)
+baseLine       = donchian(basePeriods)
+leadLine1      = math.avg(conversionLine, baseLine)
+leadLine2      = donchian(spanBPeriods)
+
+//====================================================
+// ZEERFREAKS BOUNCE PLAY LOGIC
+//====================================================
+
+isRedBar = close < open
+consecutiveRed = true
+for i = 0 to decliningDays - 1
+    if not isRedBar[i]
+        consecutiveRed := false
+
+volDecreasing = volume < volume[1] and volume[1] < volume[2]
+volFilterPassed = not requireDecreasingVol or volDecreasing
+
+bodySize = math.abs(close - open)
+rangeSize = high - low
+upperWick = high - math.max(close, open)
+lowerWick = math.min(close, open) - low
+
+isDoji = rangeSize > 0 and (bodySize / rangeSize) <= 0.10
+isHammer = lowerWick >= (bodySize * 2) and upperWick <= (bodySize * 0.5)
+isInvHammer = upperWick >= (bodySize * 2) and lowerWick <= (bodySize * 0.5)
+isReversalCandle = isHammer or isInvHammer or isDoji
+
+isOversold = rsi <= rsiMaxBounce
+
+zfBounceBuy = enableBounce and consecutiveRed and volFilterPassed and isReversalCandle and isOversold and barstate.isconfirmed
+
+//====================================================
+// SPYFRAT GOKU PRECEDENCE PLAY
+//====================================================
+
+atrVal = ta.atr(14)
+atrAvg = ta.sma(atrVal, 20)
+isCompressed = atrVal < (atrAvg * 0.8)
+
+wasCompressed = ta.lowest(isCompressed ? 1 : 0, gokuLookback) == 1
+
+gokuBreakout = ta.crossover(close, bbUpper) or ta.crossover(rsi, 60)
+gokuPlayRaw = enableGoku and wasCompressed and gokuBreakout and rsi >= 55 and close > bbBasis and barstate.isconfirmed
+
+var int lastGokuBar = -999
+gokuPlay = false
+if gokuPlayRaw and (bar_index - lastGokuBar >= minWatchSpacing)
+    gokuPlay := true
+    lastGokuBar := bar_index
+
+//====================================================
+// BULL / BEAR
+//====================================================
+
+bullSignal = ta.crossover(rsi, rsiBull) and barstate.isconfirmed
+bearSignal = ta.crossunder(rsi, rsiBull) and barstate.isconfirmed
+
+//====================================================
+// BEBEMON
+//====================================================
+
+upperTolerance = bbUpper * (bebemonTolerance / 100)
+basisTolerance = math.abs(bbBasis) * (bebemonTolerance / 100)
+
+nearUpperBB = math.abs(close - bbUpper) <= upperTolerance
+nearBasisBB = math.abs(close - bbBasis) <= basisTolerance
+bbInteraction = nearUpperBB or nearBasisBB
+
+barsSinceBB = ta.barssince(bbInteraction)
+recentBBInteraction = not na(barsSinceBB) and barsSinceBB <= bebemonLookback
+
+rsiCrossBull = ta.crossover(rsi, rsiBull)
+rsiConfirmedBull = rsi > rsiBull
+
+bebemonPriceBreak = ta.crossover(close, bbUpper)
+bebemonRSIConfirm = not requireRSICross or rsiCrossBull
+
+bebemonBuy = bebemonPriceBreak and rsiConfirmedBull and bebemonRSIConfirm and barstate.isconfirmed
+
+//====================================================
+// PARABOLIC STATE & PARABOLIC WATCH (PARA?)
+//====================================================
+
+dailyParabolic = rsi > rsiPara
+weeklyParabolic = weeklyRSI > rsiPara
+parabolicState = dailyParabolic and weeklyParabolic
+parabolicHealthy = parabolicState and weeklyRSI >= rsi
+
+paraWatchRaw = rsi >= (rsiPara - 5) and rsi < rsiPara and weeklyRSI >= 65 and barstate.isconfirmed
+
+var int lastParaWatchBar = -999
+paraWatch = false
+if paraWatchRaw and (bar_index - lastParaWatchBar >= minWatchSpacing)
+    paraWatch := true
+    lastParaWatchBar := bar_index
+
+phrRaw = parabolicState and rsi > weeklyRSI
+ephrRaw = rsi > rsiEphr and weeklyRSI > rsiEphr
+
+phr = ta.rising(rsi, 1) and phrRaw and not phrRaw[1]
+ephr = ephrRaw and not ephrRaw[1]
+
+paraPriceCondition = close > bbUpper
+paraPriceBreak = ta.crossover(close, bbUpper)
+paraRSIEntry = ta.crossover(rsi, rsiPara)
+paraBuyTrigger = paraRSIEntry or paraPriceBreak
+
+parabolicBuy = enableParaBuy and parabolicHealthy and (not requireUpperBB or paraPriceCondition) and paraBuyTrigger and barstate.isconfirmed
+
+var bool wasParabolic = false
+if parabolicState
+    wasParabolic := true
+
+paraRSIFailure = wasParabolic and ta.crossunder(rsi, rsiPara)
+
+parabolicSell = enableParaSell and (ephr or paraRSIFailure) and barstate.isconfirmed
+
+if paraRSIFailure
+    wasParabolic := false
+
+//====================================================
+// REGIME & STATE BUY/SELL FILTERING
+//====================================================
+
+var int exit3rdDayCounter = 0
+var bool inPosition = false
+
+if bebemonBuy or parabolicBuy or bullSignal or zfBounceBuy or gokuPlay
+    inPosition := true
+    exit3rdDayCounter := 0
+
+if inPosition
+    exit3rdDayCounter += 1
+
+zf3rdDayExit = enableBounce and inPosition and exit3rdDayCounter == 3 and barstate.isconfirmed
+
+normalSellRaw = (ta.crossunder(rsi, rsiBull) or ta.crossunder(close, bbBasis)) and barstate.isconfirmed and not parabolicSell
+
+normalSell = (normalSellRaw or zf3rdDayExit) and inPosition
+if normalSell or parabolicSell
+    inPosition := false
+    exit3rdDayCounter := 0
+
+normalBuy = bullSignal and not bebemonBuy and not parabolicBuy and not zfBounceBuy and not gokuPlay
+
+//====================================================
+// PLOTS
+//====================================================
+
+plot(rsi, title = "RSI 30", color = color.white, linewidth = 2)
+plot(rsiBasis, title = "RSI BB Basis", color = color.orange, linewidth = 2)
+rsiPUpper = plot(rsiUpper, title = "RSI BB Upper", color = color.blue, linewidth = 1)
+rsiPLower = plot(rsiLower, title = "RSI BB Lower", color = color.blue, linewidth = 1)
+
+// RSI BB Shading (Light Gray with 50% Transparency)
+fill(rsiPUpper, rsiPLower, color = color.new(color.gray, 50), title = "RSI BB Background Fill")
+
+hline(50, "RSI 50", color = color.gray, linestyle = hline.style_dashed)
+hline(70, "RSI 70", color = color.orange, linestyle = hline.style_dashed)
+hline(80, "RSI 80", color = color.red, linestyle = hline.style_dashed)
+
+plotshape(showBullBear and bullSignal, title = "Bull", style = shape.labelup, location = location.bottom, color = color.green, textcolor = color.white, text = "Bull", size = size.tiny)
+plotshape(showBullBear and bearSignal, title = "Bear", style = shape.labeldown, location = location.top, color = color.red, textcolor = color.white, text = "Bear", size = size.tiny)
+
+pUpper = plot(bbUpper, title = "Price BB Upper", color = color.blue, linewidth = 1, force_overlay = true)
+pBasis = plot(bbBasis, title = "Price BB Basis", color = color.orange, linewidth = 2, force_overlay = true)
+pLower = plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth = 1, force_overlay = true)
+
+// Price BB Shading (Light Gray with 50% Transparency)
+fill(pUpper, pLower, color = color.new(color.gray, 50), title = "Price BB Background Fill")
+
+// Ichimoku Overlay Plots
+plot(showIchi ? conversionLine : na, title = "Tenkan-Sen (Conversion)", color = color.blue, linewidth = 1, force_overlay = true)
+plot(showIchi ? baseLine : na, title = "Kijun-Sen (Base)", color = color.red, linewidth = 1, force_overlay = true)
+plot(showIchi ? close : na, title = "Chikou Span (Lagging)", offset = -displacement + 1, color = color.green, linewidth = 1, force_overlay = true)
+
+pSpanA = plot(showIchi ? leadLine1 : na, offset = displacement - 1, title = "Senkou Span A (Leading A)", color = color.green, force_overlay = true)
+pSpanB = plot(showIchi ? leadLine2 : na, offset = displacement - 1, title = "Senkou Span B (Leading B)", color = color.red, force_overlay = true)
+
+fill(pSpanA, pSpanB, color = leadLine1 > leadLine2 ? color.new(color.green, 80) : color.new(color.red, 80), title = "Ichimoku Cloud Fill")
+
+// Watch Plots
+plotshape(showParaWatch and paraWatch and not parabolicBuy, title = "Parabolic Watch", style = shape.labelup, location = location.belowbar, color = color.yellow, textcolor = color.black, text = "PARA?", size = size.tiny, force_overlay = true)
+
+// Special Signal Plots
+plotshape(showGokuSignal and gokuPlay, title = "Goku Play", style = shape.labelup, location = location.belowbar, color = color.purple, textcolor = color.white, text = "GOKU", size = size.small, force_overlay = true)
+plotshape(showBebemon and bebemonBuy, title = "Bebemon BUY", style = shape.labelup, location = location.belowbar, color = color.green, textcolor = color.white, text = "BEBEMON", size = size.small, force_overlay = true)
+plotshape(showBounceSignal and zfBounceBuy, title = "ZF BOUNCE BUY", style = shape.labelup, location = location.belowbar, color = color.fuchsia, textcolor = color.white, text = "ZF BOUNCE", size = size.small, force_overlay = true)
+plotshape(showParabolic and phr and not ephr, title = "PHR", style = shape.labeldown, location = location.abovebar, color = color.orange, textcolor = color.white, text = "PHR", size = size.tiny, force_overlay = true)
+plotshape(showParabolic and ephr, title = "ePHR", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "ePHR", size = size.tiny, force_overlay = true)
+
+// Alerts
+alertcondition(gokuPlay, title = "Goku Play", message = "SPYFRAT: GOKU PRECEDENCE PLAY TRIGGERED")
+alertcondition(paraWatch, title = "Parabolic Watch (PARA?)", message = "SPYFRAT: APPROACHING PARABOLIC STATE (PARA?)")
+alertcondition(zfBounceBuy, title = "ZF Bounce BUY", message = "SPYFRAT: ZF BOUNCE PLAY BUY TRIGGERED")
+alertcondition(bebemonBuy, title = "Bebemon BUY", message = "SPYFRAT: BEBEMON BUY")
+alertcondition(parabolicBuy, title = "Parabolic BUY", message = "SPYFRAT: PARABOLIC BUY")
+alertcondition(normalBuy, title = "BUY", message = "SPYFRAT: BUY")
+alertcondition(parabolicSell, title = "Parabolic SELL", message = "SPYFRAT: PARABOLIC SELL")
+alertcondition(normalSell, title = "SELL", message = "SPYFRAT: SELL")
+alertcondition(phr, title = "PHR", message = "SPYFRAT: PHR - TRAIL / TAKE PROFITS")
+alertcondition(ephr, title = "ePHR", message = "SPYFRAT: ePHR - SELL ON SIGHT")
+alertcondition(bullSignal, title = "Bull", message = "SPYFRAT: RSI30 crossed above 50")
+alertcondition(bearSignal, title = "Bear", message = "SPYFRAT: RSI30 crossed below 50")
