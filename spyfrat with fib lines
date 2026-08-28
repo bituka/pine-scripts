@@ -56,7 +56,6 @@ showBebemon = input.bool(true, "Show Bebemon", group = groupSignals)
 showBullBear = input.bool(true, "Show Bull / Bear", group = groupSignals)
 showParabolic = input.bool(true, "Show Parabolic Signals", group = groupSignals)
 showParaWatch = input.bool(true, "Show Parabolic Watch (PARA?)", group = groupSignals)
-showBounceSignal = input.bool(true, "Show ZF Bounce Signals", group = groupSignals)
 showGokuSignal = input.bool(true, "Show Goku Play Signals", group = groupSignals)
 
 //====================================================
@@ -271,7 +270,6 @@ plotshape(showParaWatch and paraWatch and not parabolicBuy, title = "Parabolic W
 // Special Signal Plots
 plotshape(showGokuSignal and gokuPlay, title = "Goku Play", style = shape.labelup, location = location.belowbar, color = color.purple, textcolor = color.white, text = "GOKU", size = size.small, force_overlay = true)
 plotshape(showBebemon and bebemonBuy, title = "Bebemon BUY", style = shape.labelup, location = location.belowbar, color = color.green, textcolor = color.white, text = "BEBEMON", size = size.small, force_overlay = true)
-plotshape(showBounceSignal and zfBounceBuy, title = "ZF BOUNCE BUY", style = shape.labelup, location = location.belowbar, color = color.fuchsia, textcolor = color.white, text = "ZF BOUNCE", size = size.small, force_overlay = true)
 plotshape(showParabolic and phr and not ephr, title = "PHR", style = shape.labeldown, location = location.abovebar, color = color.orange, textcolor = color.white, text = "PHR", size = size.tiny, force_overlay = true)
 plotshape(showParabolic and ephr, title = "ePHR", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "ePHR", size = size.tiny, force_overlay = true)
 
@@ -287,4 +285,4 @@ alertcondition(normalSell, title = "SELL", message = "SPYFRAT: SELL")
 alertcondition(phr, title = "PHR", message = "SPYFRAT: PHR - TRAIL / TAKE PROFITS")
 alertcondition(ephr, title = "ePHR", message = "SPYFRAT: ePHR - SELL ON SIGHT")
 alertcondition(bullSignal, title = "Bull", message = "SPYFRAT: RSI30 crossed above 50")
-alertcondition(bearSignal, title = "Bear", message = "SPYFRAT: RSI30 crossed below 5
+alertcondition(bearSignal, title = "Bear", message = "SPYFRAT: RSI30 crossed below 50")
