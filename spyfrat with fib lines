@@ -48,12 +48,18 @@ groupFib = "Fibonacci Retracements"
 showFib = input.bool(true, "Show Fibonacci Lines", group = groupFib)
 fibLen = input.int(55, "Fib Lookback Length", minval = 2, group = groupFib)
 
+groupDiv = "Divergence Settings"
+divLookbackLeft = input.int(5, "Pivot Lookback Left", minval = 1, group = groupDiv)
+divLookbackRight = input.int(5, "Pivot Lookback Right", minval = 1, group = groupDiv)
+divMaxRange = input.int(60, "Max Bars Between Pivots", minval = 5, group = groupDiv)
+divMinRange = input.int(5, "Min Bars Between Pivots", minval = 1, group = groupDiv)
+
 groupFilter = "Clutter Control Filters"
 minWatchSpacing = input.int(5, "Min Bars Between Watch Warnings", minval = 1, group = groupFilter)
 
 groupSignals = "Display"
 showBebemon = input.bool(true, "Show Bebemon", group = groupSignals)
-showBullBear = input.bool(true, "Show Bull / Bear", group = groupSignals)
+showBullBearDiv = input.bool(true, "Show Bull / Bear Divergence", group = groupSignals)
 showParabolic = input.bool(true, "Show Parabolic Signals", group = groupSignals)
 showParaWatch = input.bool(true, "Show Parabolic Watch (PARA?)", group = groupSignals)
 showGokuSignal = input.bool(true, "Show Goku Play Signals", group = groupSignals)
@@ -89,6 +95,55 @@ fib618 = lowestLow + fibRange * 0.618
 fib500 = lowestLow + fibRange * 0.500
 fib382 = lowestLow + fibRange * 0.382
 fib236 = lowestLow + fibRange * 0.236
+
+//====================================================
+// DIVERGENCE DETECTION (BULL / BEAR)
+//====================================================
+
+plFound = not na(ta.pivotlow(rsi, divLookbackLeft, divLookbackRight))
+phFound = not na(ta.pivothigh(rsi, divLookbackLeft, divLookbackRight))
+
+// Bullish Divergence (Price Lower Low, RSI Higher Low) — only if RSI pivot < 50
+var float lastRsiPl = na
+var float prevRsiPl = na
+var float lastPricePl = na
+var float prevPricePl = na
+var int lastPlBar = na
+
+bullishDiv = false
+if plFound
+    prevRsiPl := lastRsiPl
+    lastRsiPl := rsi[divLookbackRight]
+    prevPricePl := lastPricePl
+    lastPricePl := low[divLookbackRight]
+    
+    if not na(prevRsiPl) and not na(prevPricePl) and not na(lastPlBar)
+        diffBars = (bar_index - divLookbackRight) - lastPlBar
+        if diffBars >= divMinRange and diffBars <= divMaxRange
+            if lastPricePl < prevPricePl and lastRsiPl > prevRsiPl and lastRsiPl < rsiBull
+                bullishDiv := true
+    lastPlBar := bar_index - divLookbackRight
+
+// Bearish Divergence (Price Higher High, RSI Lower High) — only if RSI pivot > 70
+var float lastRsiPh = na
+var float prevRsiPh = na
+var float lastPricePh = na
+var float prevPricePh = na
+var int lastPhBar = na
+
+bearishDiv = false
+if phFound
+    prevRsiPh := lastRsiPh
+    lastRsiPh := rsi[divLookbackRight]
+    prevPricePh := lastPricePh
+    lastPricePh := high[divLookbackRight]
+    
+    if not na(prevRsiPh) and not na(prevPricePh) and not na(lastPhBar)
+        diffBars = (bar_index - divLookbackRight) - lastPhBar
+        if diffBars >= divMinRange and diffBars <= divMaxRange
+            if lastPricePh > prevPricePh and lastRsiPh < prevRsiPh and lastRsiPh > rsiPara
+                bearishDiv := true
+    lastPhBar := bar_index - divLookbackRight
 
 //====================================================
 // ZEERFREAKS BOUNCE PLAY LOGIC
@@ -137,7 +192,7 @@ if gokuPlayRaw and (bar_index - lastGokuBar >= minWatchSpacing)
     lastGokuBar := bar_index
 
 //====================================================
-// BULL / BEAR
+// BULL / BEAR (CROSSOVER SIGNALS)
 //====================================================
 
 bullSignal = ta.crossover(rsi, rsiBull) and barstate.isconfirmed
@@ -240,40 +295,37 @@ plot(rsiBasis, title = "RSI BB Basis", color = color.orange, linewidth = 2)
 rsiPUpper = plot(rsiUpper, title = "RSI BB Upper", color = color.blue, linewidth = 1)
 rsiPLower = plot(rsiLower, title = "RSI BB Lower", color = color.blue, linewidth = 1)
 
-// RSI BB Shading (Light Gray with 50% Transparency)
 fill(rsiPUpper, rsiPLower, color = color.new(color.gray, 50), title = "RSI BB Background Fill")
 
 hline(50, "RSI 50", color = color.gray, linestyle = hline.style_dashed)
 hline(70, "RSI 70", color = color.orange, linestyle = hline.style_dashed)
 hline(80, "RSI 80", color = color.red, linestyle = hline.style_dashed)
 
-plotshape(showBullBear and bullSignal, title = "Bull", style = shape.labelup, location = location.bottom, color = color.green, textcolor = color.white, text = "Bull", size = size.tiny)
-plotshape(showBullBear and bearSignal, title = "Bear", style = shape.labeldown, location = location.top, color = color.red, textcolor = color.white, text = "Bear", size = size.tiny)
+plotshape(showBullBearDiv and bullishDiv, title = "Bullish Divergence", style = shape.labelup, location = location.bottom, color = color.green, textcolor = color.white, text = "Bull", size = size.tiny, offset = -divLookbackRight)
+plotshape(showBullBearDiv and bearishDiv, title = "Bearish Divergence", style = shape.labeldown, location = location.top, color = color.red, textcolor = color.white, text = "Bear", size = size.tiny, offset = -divLookbackRight)
 
 pUpper = plot(bbUpper, title = "Price BB Upper", color = color.blue, linewidth = 1, force_overlay = true)
 pBasis = plot(bbBasis, title = "Price BB Basis", color = color.orange, linewidth = 2, force_overlay = true)
 pLower = plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth = 1, force_overlay = true)
 
-// Price BB Shading (Light Gray with 50% Transparency)
 fill(pUpper, pLower, color = color.new(color.gray, 50), title = "Price BB Background Fill")
 
-// Fibonacci Plots (Dashed / Broken Lines on Price Overlay)
 plot(showFib ? fib786 : na, title = "Fib 0.786", color = color.orange, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib618 : na, title = "Fib 0.618", color = color.yellow, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib500 : na, title = "Fib 0.500", color = color.green,  linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib382 : na, title = "Fib 0.382", color = color.teal,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib236 : na, title = "Fib 0.236", color = color.blue,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 
-// Watch Plots
 plotshape(showParaWatch and paraWatch and not parabolicBuy, title = "Parabolic Watch", style = shape.labelup, location = location.belowbar, color = color.yellow, textcolor = color.black, text = "PARA?", size = size.tiny, force_overlay = true)
 
-// Special Signal Plots
 plotshape(showGokuSignal and gokuPlay, title = "Goku Play", style = shape.labelup, location = location.belowbar, color = color.purple, textcolor = color.white, text = "GOKU", size = size.small, force_overlay = true)
 plotshape(showBebemon and bebemonBuy, title = "Bebemon BUY", style = shape.labelup, location = location.belowbar, color = color.green, textcolor = color.white, text = "BEBEMON", size = size.small, force_overlay = true)
 plotshape(showParabolic and phr and not ephr, title = "PHR", style = shape.labeldown, location = location.abovebar, color = color.orange, textcolor = color.white, text = "PHR", size = size.tiny, force_overlay = true)
 plotshape(showParabolic and ephr, title = "ePHR", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "ePHR", size = size.tiny, force_overlay = true)
 
 // Alerts
+alertcondition(bullishDiv, title = "Bull Divergence", message = "SPYFRAT: Bullish RSI Divergence Detected")
+alertcondition(bearishDiv, title = "Bear Divergence", message = "SPYFRAT: Bearish RSI Divergence Detected")
 alertcondition(gokuPlay, title = "Goku Play", message = "SPYFRAT: GOKU PRECEDENCE PLAY TRIGGERED")
 alertcondition(paraWatch, title = "Parabolic Watch (PARA?)", message = "SPYFRAT: APPROACHING PARABOLIC STATE (PARA?)")
 alertcondition(zfBounceBuy, title = "ZF Bounce BUY", message = "SPYFRAT: ZF BOUNCE PLAY BUY TRIGGERED")
