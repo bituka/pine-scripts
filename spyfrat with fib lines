@@ -83,18 +83,18 @@ rsiLower = rsiBasis - rsiDev
 weeklyRSI = request.security(syminfo.tickerid, "W", ta.rsi(close, rsiLength), barmerge.gaps_off, barmerge.lookahead_off)
 
 //====================================================
-// FIBONACCI CALCULATIONS (0.786 TO 0.236 ONLY)
+// FIBONACCI RETRACEMENT CALCULATIONS (STANDARD TOP-DOWN)
 //====================================================
 
 highestHigh = ta.highest(high, fibLen)
 lowestLow   = ta.lowest(low, fibLen)
 fibRange    = highestHigh - lowestLow
 
-fib786 = lowestLow + fibRange * 0.786
-fib618 = lowestLow + fibRange * 0.618
-fib500 = lowestLow + fibRange * 0.500
-fib382 = lowestLow + fibRange * 0.382
-fib236 = lowestLow + fibRange * 0.236
+fib236 = highestHigh - fibRange * 0.236
+fib382 = highestHigh - fibRange * 0.382
+fib500 = lowestLow   + fibRange * 0.500
+fib618 = highestHigh - fibRange * 0.618
+fib786 = highestHigh - fibRange * 0.786
 
 //====================================================
 // DIVERGENCE DETECTION (BULL / BEAR)
@@ -310,11 +310,29 @@ pLower = plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth =
 
 fill(pUpper, pLower, color = color.new(color.gray, 50), title = "Price BB Background Fill")
 
-plot(showFib ? fib786 : na, title = "Fib 0.786", color = color.orange, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
-plot(showFib ? fib618 : na, title = "Fib 0.618", color = color.yellow, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
-plot(showFib ? fib500 : na, title = "Fib 0.500", color = color.green,  linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
-plot(showFib ? fib382 : na, title = "Fib 0.382", color = color.teal,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+// Fibonacci Retracement Lines
 plot(showFib ? fib236 : na, title = "Fib 0.236", color = color.blue,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib382 : na, title = "Fib 0.382", color = color.teal,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib500 : na, title = "Fib 0.500", color = color.green,  linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib618 : na, title = "Fib 0.618", color = color.yellow, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib786 : na, title = "Fib 0.786", color = color.orange, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+
+// 0.618 Fibonacci Label
+var label fib618Label = na
+if showFib and barstate.islast
+    label.delete(fib618Label)
+    fib618Label := label.new(
+         x = bar_index + 2,
+         y = fib618,
+         text = "0.618",
+         style = label.style_label_left,
+         color = color.new(color.yellow, 20),
+         textcolor = color.black,
+         size = size.small,
+         force_overlay = true
+    )
+if not showFib
+    label.delete(fib618Label)
 
 plotshape(showParaWatch and paraWatch and not parabolicBuy, title = "Parabolic Watch", style = shape.labelup, location = location.belowbar, color = color.yellow, textcolor = color.black, text = "PARA?", size = size.tiny, force_overlay = true)
 
