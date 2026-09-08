@@ -64,6 +64,10 @@ showParabolic = input.bool(true, "Show Parabolic Signals", group = groupSignals)
 showParaWatch = input.bool(true, "Show Parabolic Watch (PARA?)", group = groupSignals)
 showGokuSignal = input.bool(true, "Show Goku Play Signals", group = groupSignals)
 
+groupSession = "Trading Hours Info"
+showSessionInfo = input.bool(true, "Show Session / Trading Hours Box", group = groupSession)
+tablePosition  = input.string("Top Right", "Box Position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group = groupSession)
+
 //====================================================
 // CALCULATIONS
 //====================================================
@@ -341,18 +345,58 @@ plotshape(showBebemon and bebemonBuy, title = "Bebemon BUY", style = shape.label
 plotshape(showParabolic and phr and not ephr, title = "PHR", style = shape.labeldown, location = location.abovebar, color = color.orange, textcolor = color.white, text = "PHR", size = size.tiny, force_overlay = true)
 plotshape(showParabolic and ephr, title = "ePHR", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "ePHR", size = size.tiny, force_overlay = true)
 
-// Alerts
-alertcondition(bullishDiv, title = "Bull Divergence", message = "SPYFRAT: Bullish RSI Divergence Detected")
-alertcondition(bearishDiv, title = "Bear Divergence", message = "SPYFRAT: Bearish RSI Divergence Detected")
-alertcondition(gokuPlay, title = "Goku Play", message = "SPYFRAT: GOKU PRECEDENCE PLAY TRIGGERED")
-alertcondition(paraWatch, title = "Parabolic Watch (PARA?)", message = "SPYFRAT: APPROACHING PARABOLIC STATE (PARA?)")
-alertcondition(zfBounceBuy, title = "ZF Bounce BUY", message = "SPYFRAT: ZF BOUNCE PLAY BUY TRIGGERED")
-alertcondition(bebemonBuy, title = "Bebemon BUY", message = "SPYFRAT: BEBEMON BUY")
-alertcondition(parabolicBuy, title = "Parabolic BUY", message = "SPYFRAT: PARABOLIC BUY")
-alertcondition(normalBuy, title = "BUY", message = "SPYFRAT: BUY")
-alertcondition(parabolicSell, title = "Parabolic SELL", message = "SPYFRAT: PARABOLIC SELL")
-alertcondition(normalSell, title = "SELL", message = "SPYFRAT: SELL")
-alertcondition(phr, title = "PHR", message = "SPYFRAT: PHR - TRAIL / TAKE PROFITS")
-alertcondition(ephr, title = "ePHR", message = "SPYFRAT: ePHR - SELL ON SIGHT")
-alertcondition(bullSignal, title = "Bull", message = "SPYFRAT: RSI30 crossed above 50")
-alertcondition(bearSignal, title = "Bear", message = "SPYFRAT: RSI30 crossed below 50")
+//====================================================
+// TRADING HOURS & SESSION DISPLAY TABLE
+//====================================================
+
+var table sessionTable = na
+
+// Position Mapping
+tablePos = tablePosition == "Top Right" ? position.top_right :
+           tablePosition == "Top Left" ? position.top_left :
+           tablePosition == "Bottom Right" ? position.bottom_right : position.bottom_left
+
+if showSessionInfo and barstate.islast
+    table.delete(sessionTable)
+    sessionTable := table.new(
+         position = tablePos, 
+         columns = 2, 
+         rows = 4, 
+         bgcolor = color.new(color.black, 20), 
+         border_color = color.gray, 
+         border_width = 1,
+         force_overlay = true
+    )
+    
+    // Time & Session Calculations
+    sessRegular = syminfo.session
+    sessTimezone = syminfo.timezone != "" ? syminfo.timezone : "Exchange Local"
+    
+    // Get Session Start and End Timestamps for current day
+    sessStartMs = time(timeframe.period, session.regular)
+    sessEndMs   = time_close(timeframe.period, session.regular)
+    
+    string phrTimeString = "24/7 or Continuous"
+    
+    if not na(sessStartMs) and not na(sessEndMs) and sessRegular != "24x7"
+        // Convert session start/end to Philippine Time (Asia/Manila)
+        string startPHT = str.format_time(sessStartMs, "HH:mm", "Asia/Manila")
+        string endPHT   = str.format_time(sessEndMs, "HH:mm", "Asia/Manila")
+        phrTimeString := startPHT + " - " + endPHT + " (PHT)"
+
+    isMarketOpen = time(timeframe.period, syminfo.session)
+    statusText = not na(isMarketOpen) ? "OPEN" : "CLOSED"
+    statusColor = not na(isMarketOpen) ? color.green : color.red
+
+    // Build Table Cells
+    table.cell(sessionTable, 0, 0, "Symbol", text_color = color.gray, text_size = size.small)
+    table.cell(sessionTable, 1, 0, syminfo.ticker, text_color = color.white, text_size = size.small)
+
+    table.cell(sessionTable, 0, 1, "Exchange Hours", text_color = color.gray, text_size = size.small)
+    table.cell(sessionTable, 1, 1, sessRegular + " (" + sessTimezone + ")", text_color = color.white, text_size = size.small)
+
+    table.cell(sessionTable, 0, 2, "Philippine Time", text_color = color.gray, text_size = size.small)
+    table.cell(sessionTable, 1, 2, phrTimeString, text_color = color.yellow, text_size = size.small)
+
+    table.cell(sessionTable, 0, 3, "Session Status", text_color = color.gray, text_size = size.small)
+    table.cell(sessionTable, 1, 3, statusText, text_color = statusColor, text_size = size.small)
