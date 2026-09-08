@@ -346,7 +346,7 @@ plotshape(showParabolic and phr and not ephr, title = "PHR", style = shape.label
 plotshape(showParabolic and ephr, title = "ePHR", style = shape.labeldown, location = location.abovebar, color = color.red, textcolor = color.white, text = "ePHR", size = size.tiny, force_overlay = true)
 
 //====================================================
-// TRADING HOURS & SESSION DISPLAY TABLE
+// TRADING HOURS & SESSION DISPLAY TABLE (FIXED)
 //====================================================
 
 var table sessionTable = na
@@ -355,6 +355,28 @@ var table sessionTable = na
 tablePos = tablePosition == "Top Right" ? position.top_right :
            tablePosition == "Top Left" ? position.top_left :
            tablePosition == "Bottom Right" ? position.bottom_right : position.bottom_left
+
+// Helper function to check market status via real-time clock
+f_isMarketOpen() =>
+    // Current time components in Asia/Manila timezone
+    int curHour = hour(timenow, "Asia/Manila")
+    int curMin  = minute(timenow, "Asia/Manila")
+    int curDay  = dayofweek(timenow, "Asia/Manila")
+    int timeInMins = curHour * 60 + curMin
+
+    bool isWeekday = curDay >= dayofweek.monday and curDay <= dayofweek.friday
+    bool isOpen = false
+
+    if syminfo.prefix == "PSE" or str.contains(syminfo.timezone, "Manila")
+        // PSE Hours (PHT): Morning (09:30-12:00 = 570-720m), Afternoon (13:00-15:00 = 780-900m)
+        bool morningSession   = timeInMins >= 570 and timeInMins < 720
+        bool afternoonSession = timeInMins >= 780 and timeInMins < 900
+        isOpen := isWeekday and (morningSession or afternoonSession)
+    else
+        // Fallback for non-PSE assets using standard timeframe session test
+        isOpen := not na(time(timeframe.isintraday ? timeframe.period : "60", syminfo.session))
+    
+    isOpen
 
 if showSessionInfo and barstate.islast
     table.delete(sessionTable)
@@ -378,15 +400,16 @@ if showSessionInfo and barstate.islast
     
     string phrTimeString = "24/7 or Continuous"
     
-    if not na(sessStartMs) and not na(sessEndMs) and sessRegular != "24x7"
-        // Convert session start/end to Philippine Time (Asia/Manila)
+    if syminfo.prefix == "PSE"
+        phrTimeString := "09:30 - 15:00 (PHT)"
+    else if not na(sessStartMs) and not na(sessEndMs) and sessRegular != "24x7"
         string startPHT = str.format_time(sessStartMs, "HH:mm", "Asia/Manila")
         string endPHT   = str.format_time(sessEndMs, "HH:mm", "Asia/Manila")
         phrTimeString := startPHT + " - " + endPHT + " (PHT)"
 
-    isMarketOpen = time(timeframe.period, syminfo.session)
-    statusText = not na(isMarketOpen) ? "OPEN" : "CLOSED"
-    statusColor = not na(isMarketOpen) ? color.green : color.red
+    bool marketOpen = f_isMarketOpen()
+    string statusText = marketOpen ? "OPEN" : "CLOSED"
+    color statusColor = marketOpen ? color.green : color.red
 
     // Build Table Cells
     table.cell(sessionTable, 0, 0, "Symbol", text_color = color.gray, text_size = size.small)
