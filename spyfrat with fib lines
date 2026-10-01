@@ -97,11 +97,13 @@ highestHigh = ta.highest(high, fibLen)
 lowestLow   = ta.lowest(low, fibLen)
 fibRange    = highestHigh - lowestLow
 
+fib0   = lowestLow
 fib236 = highestHigh - fibRange * 0.236
 fib382 = highestHigh - fibRange * 0.382
 fib500 = lowestLow   + fibRange * 0.500
 fib618 = highestHigh - fibRange * 0.618
 fib786 = highestHigh - fibRange * 0.786
+fib1   = highestHigh
 
 //====================================================
 // DIVERGENCE DETECTION (BULL / BEAR)
@@ -338,11 +340,13 @@ pLower = plot(bbLower, title = "Price BB Lower", color = color.blue, linewidth =
 fill(pUpper, pLower, color = color.new(color.gray, 50), title = "Price BB Background Fill")
 
 // Fibonacci Retracement Lines
+plot(showFib ? fib0   : na, title = "Fib 0.000", color = color.red,     linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib236 : na, title = "Fib 0.236", color = color.blue,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib382 : na, title = "Fib 0.382", color = color.teal,   linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib500 : na, title = "Fib 0.500", color = color.green,  linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib618 : na, title = "Fib 0.618", color = color.yellow, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 plot(showFib ? fib786 : na, title = "Fib 0.786", color = color.orange, linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
+plot(showFib ? fib1   : na, title = "Fib 1.000", color = color.red,     linewidth = 1, linestyle = plot.linestyle_dashed, force_overlay = true)
 
 // 0.618 Fibonacci Label
 var label fib618Label = na
