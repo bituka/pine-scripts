@@ -3,7 +3,9 @@ indicator(
      "Spyfrat All-in-One v3 + ZF Bounce + Goku",
      shorttitle = "Spyfrat AIO v3 Full",
      overlay = false,
-     precision = 2
+     precision = 2,
+     max_lines_count = 500,
+     max_labels_count = 500
 )
 
 //====================================================
@@ -53,6 +55,7 @@ divLookbackLeft = input.int(5, "Pivot Lookback Left", minval = 1, group = groupD
 divLookbackRight = input.int(5, "Pivot Lookback Right", minval = 1, group = groupDiv)
 divMaxRange = input.int(60, "Max Bars Between Pivots", minval = 5, group = groupDiv)
 divMinRange = input.int(5, "Min Bars Between Pivots", minval = 1, group = groupDiv)
+showDivLines = input.bool(true, "Show Divergence Lines on RSI", group = groupDiv)
 
 groupFilter = "Clutter Control Filters"
 minWatchSpacing = input.int(5, "Min Bars Between Watch Warnings", minval = 1, group = groupFilter)
@@ -126,6 +129,16 @@ if plFound
         if diffBars >= divMinRange and diffBars <= divMaxRange
             if lastPricePl < prevPricePl and lastRsiPl > prevRsiPl and lastRsiPl < rsiBull
                 bullishDiv := true
+                if showDivLines
+                    line.new(
+                         x1 = lastPlBar,
+                         y1 = prevRsiPl,
+                         x2 = bar_index - divLookbackRight,
+                         y2 = lastRsiPl,
+                         color = color.lime,
+                         width = 2,
+                         style = line.style_solid
+                    )
     lastPlBar := bar_index - divLookbackRight
 
 // Bearish Divergence (Price Higher High, RSI Lower High) — only if RSI pivot > 70
@@ -147,6 +160,16 @@ if phFound
         if diffBars >= divMinRange and diffBars <= divMaxRange
             if lastPricePh > prevPricePh and lastRsiPh < prevRsiPh and lastRsiPh > rsiPara
                 bearishDiv := true
+                if showDivLines
+                    line.new(
+                         x1 = lastPhBar,
+                         y1 = prevRsiPh,
+                         x2 = bar_index - divLookbackRight,
+                         y2 = lastRsiPh,
+                         color = color.red,
+                         width = 2,
+                         style = line.style_solid
+                    )
     lastPhBar := bar_index - divLookbackRight
 
 //====================================================
